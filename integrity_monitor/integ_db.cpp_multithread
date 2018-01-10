@@ -1,0 +1,626 @@
+#include "stdafx.h"
+#include "integ_db.hpp"
+#include "..\\Lib\\log.hpp"
+
+Cinteg_db				integ_db;
+Cmd5_pool				md5_pool;
+int						max_list_size	= 0;
+string					terminator_string = "END_201274.201274";
+
+extern	Clog			logger;
+extern  long			idc_comment;
+extern	long			idc_list1;
+extern  bool			stop;
+extern	string			modified_files_path;
+extern	string			new_files_path;
+extern  UI32			global_nb_thread;
+
+extern	HWND			saved_hWnd;
+const	UI32			CRC_SIZE = 32;
+UI32					current_lap		= 0;
+UI32					total_nb_step;
+UI32					nb_hdd;
+UI32					index;
+bool					process_aborted = false;
+
+string status_2_string (UI32 _status) {
+	string s = "UNKNOWN";
+	switch (_status) {
+		case UNIT_ERROR:
+			s = "ERR";
+			break;
+		case UNIT_ABSENT_FROM_DB:
+			s = "NEW";
+			break;
+		case UNIT_DELETED_FROM_DISK:
+			s = "DEL";
+			break;
+		case UNIT_PRESENT_SAME:
+			s = "OK";
+			break;
+		case UNIT_PRESENT_DIFFERENT:
+			s = "DIF";
+			break;
+	}
+	return (s);
+}
+
+//----------------------------------
+Cinteg_db::Cinteg_db () {
+	clear ();
+}
+
+void Cinteg_db::clear () {
+	loaded = false;
+	m.clear ();	
+}
+
+bool Cinteg_db::load (const char * _db_filename) {
+	bool bret = true;
+	if (bret == NULL) {
+		bret = false;
+	}
+	else {
+		m.clear (); // discard all previously loaded data
+		FILE * fp = fopen (_db_filename, "rb");
+		if (! fp) {
+			bret = false;
+		}
+		else {
+			UI08 name_length = 0;
+			char name_tmp[MAX_FILENAME_SIZE];
+			char crc_tmp[CRC_SIZE+1];
+
+			for (;;) {
+				// load filename's length
+				if (fread (&name_length, 1, 1, fp) != 1) {
+					break; // clean end
+				}
+
+				// ensure the file name length is coherent
+				if (name_length > MAX_FILENAME_SIZE) {
+					bret = false;
+					break;
+				}
+
+				// load filename
+				if (fread (&name_tmp, 1, name_length, fp) != name_length) {
+					bret = false;
+					break;
+				}
+				name_tmp[name_length] = '\0';
+
+				// load crc
+				if (fread (&crc_tmp, 1, CRC_SIZE, fp) != CRC_SIZE) {
+					bret = false;
+					break;
+				}
+				crc_tmp[CRC_SIZE] = '\0';
+
+				// save up this new entry to container
+				iter = m.find (name_tmp);
+				if (iter == m.end()) {
+#if defined (DEBUG_INTEGRITY_CHECKER)
+					char tmp[MAX_FILENAME_SIZE];
+					snprintf (tmp, MAX_FILENAME_SIZE, "added: %s", name_tmp);
+					tmp[MAX_FILENAME_SIZE - 1] = '\0';
+					logger.log_that (tmp);
+#endif
+					m[name_tmp] = crc_tmp;
+				}
+			}
+			fclose (fp);
+		}
+	}
+
+	return (bret);
+}
+
+UI32 Cinteg_db::get_size () {
+	return (m.size());
+}
+
+// 1 byte   : file name's length
+// n bytes  : file name
+// 32 bytes : crc as a string
+//            example: f5d1383c710ca95c534d5a93dd310016	
+bool Cinteg_db::save (const char * _db_filename) {
+	bool bret = true;
+	FILE * fp = NULL;
+
+	if (bret == NULL) {
+		logger.log_that ("+++ Cinteg_db::save - ERROR 1");
+		bret = false;
+	}
+	else if (m.size() == 0 ) {
+		bret = true; // not an error actually
+	}
+	else {
+		fp = fopen (_db_filename, "wb");
+		if (! fp) {
+			logger.log_that ("+++ Cinteg_db::save - ERROR 3");
+			bret = false;
+		}
+		else {
+			UI08 name_length;
+			for (iter=m.begin() ; iter != m.end() ; ++iter) {
+				name_length = (iter->first).size();
+
+				// save size of file name
+				if (fwrite (&name_length, 1, 1, fp) != 1) {
+					logger.log_that ("+++ Cinteg_db::save - ERROR 4");
+					bret = false;
+					break;
+				}
+
+				// save filename
+				if (fwrite ((iter->first).c_str(), 1, (iter->first).size(), fp) != (iter->first).size()) {
+					logger.log_that ("+++ Cinteg_db::save - ERROR 5");
+					bret = false;
+					break;
+				}
+
+				// save crc
+				if (fwrite ((iter->second).c_str(), 1, CRC_SIZE, fp) != CRC_SIZE) {
+					logger.log_that ("+++ Cinteg_db::save - ERROR 6");
+					bret = false;
+					break;
+				}
+			}
+		}
+	}
+
+	if (fp != NULL) {
+		fclose (fp);
+	}
+	return (bret);
+}
+
+bool Cinteg_db::compute_crc (const char * _filename) {
+	bool bret = true;
+	crc = compute_hash_mmap (_filename, bret);
+//	crc = compute_hash (_filename);
+#if defined (DEBUG_INTEGRITY_CHECKER)
+	logger.log_that (_filename, crc.c_str());
+#endif
+	return (bret);
+}
+
+bool Cinteg_db::add_unit (const char * _filename, bool _ok_if_exists, const char * _crc) {
+	bool bret = true;
+	if (_filename == NULL) {
+		bret = false;
+	}
+	else {
+		iter = m.find (_filename);
+		if (iter != m.end()) {
+			if (_ok_if_exists == false) {
+				logger.log_that ("+++ WARNING : file already present");
+				bret = false; // already present			
+			}
+		}
+		else {
+			crc = _crc;
+			if ((crc.size() == 0) && (compute_crc (_filename) == false)) {
+				logger.log_that ("+++ ERROR: hash computation failed for file : ", _filename);
+				bret = false;	
+			}
+			else {
+				m[_filename] = crc;
+				{
+					current_lap++;
+					if ((current_lap%256) == 0) {
+						char tmp[256];
+						snprintf (tmp, 256, "creating DB from %c%c (%u files)", _filename[0], _filename[1], m.size());
+						tmp[255] = '\0';
+						SendDlgItemMessage (saved_hWnd, idc_comment, WM_SETTEXT, 0, (LPARAM) tmp);
+					}
+				}
+			}
+		}
+	}
+	return (bret);
+}
+
+// check presence of file in container
+UI32 Cinteg_db::check_presence (const char * _filename) {
+	UI32 status = UNIT_ABSENT_FROM_DB;
+
+	iter = m.find (_filename);
+	if (iter != m.end()) {
+		if (compute_crc (_filename) == false) {
+#if defined (DEBUG_INTEGRITY_CHECKER_CORE)
+			logger.log_that (_filename, ": UNIT_ERROR");
+#endif
+			status = UNIT_ERROR;	
+		}
+		else {
+			if (iter->second == crc) {
+				status = UNIT_PRESENT_SAME;
+			}
+			else {
+#if defined (DEBUG_INTEGRITY_CHECKER_CORE)
+				char tmp[MAX_FILENAME_SIZE];
+				snprintf (tmp, MAX_FILENAME_SIZE, "file: %s has changed ! (old crc:%s, new crc:%s)", _filename, (iter->second).c_str(), crc.c_str());
+				tmp[MAX_FILENAME_SIZE - 1] = '\0';
+				logger.log_that (tmp);
+#endif
+				status = UNIT_PRESENT_DIFFERENT;
+			}
+		}
+	}
+	return (status);
+}
+
+// check presence of all files of container on the disk
+bool Cinteg_db::check_deleted_files (map<string, UI32>& _m_status) {
+	bool bret = true;
+	char tmp[MAX_FILENAME_SIZE];
+	current_lap = 0;
+	UI32 total = m.size ();
+	UI32 percent;
+
+	for (iter=m.begin() ; iter != m.end() ; ++iter) {
+		current_lap++;
+
+		if ((current_lap%256) ==0) {
+			percent = (current_lap * 100) / total;
+			snprintf (tmp, MAX_FILENAME_SIZE, "checking drive %c%c step %d/%d...(%u %%)", iter->first[0], iter->first[1], index+1, total_nb_step, percent);
+			tmp[MAX_FILENAME_SIZE - 1] = '\0';
+			SendDlgItemMessage (saved_hWnd, idc_comment, WM_SETTEXT, 0, (LPARAM) tmp);	
+		}
+
+		if (stop == true) {
+			break;
+		}
+
+		if (file_exists ((iter->first).c_str()) == false) {
+			_m_status[iter->first] = UNIT_DELETED_FROM_DISK;
+			snprintf (tmp, MAX_FILENAME_SIZE, "[DEL] - %s", (iter->first).c_str());
+			tmp[MAX_FILENAME_SIZE - 1] = '\0';
+			add_text_2_list (tmp);
+		}
+	}
+	return (bret);
+}
+
+//=======================================================
+// Integrity related file finder
+//=======================================================
+bool Cinteg_finder::extract_directory_list (const char * _dirname, vector<string>& v_dir) {
+	if (stop == true) {
+		abort_process ();
+		return (true);
+	}
+
+	bool bret = true;
+	if (SetCurrentDirectory (_dirname) == false) {
+		bret = false;
+	}
+	else {
+		WIN32_FIND_DATA FindData; 
+		HANDLE hFind = FindFirstFile ("*.*", &FindData);	
+
+		if (hFind == INVALID_HANDLE_VALUE) {
+			bret = false;
+		}
+		else {
+			UI32 name_size;
+			v_dir.clear ();
+			do  {
+				if (stop ==  true) {
+					abort_process ();
+					return (true);
+				}
+
+				if (FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+					if((strcmp(FindData.cFileName, ".")!=0) && (strcmp(FindData.cFileName, "..")!=0)) {
+#if ! defined (EXPLORE_HIDDEN_SYSTEM_DIR)
+						if (is_hidden_system_file (FindData.cFileName) == true) {
+#if defined (DEBUG_INTEGRITY_CHECKER)
+							logger.log_that ("[SKIPPING] ", FindData.cFileName);
+#endif
+						} 
+						else { 
+#endif
+							name_size = strlen (_dirname);
+							if (name_size > 0) {
+								string stmp = _dirname;
+
+								if (_dirname[name_size - 1] != '\\') {
+									v_dir.push_back (stmp + "\\" + FindData.cFileName);
+								}
+								else {
+									v_dir.push_back (stmp + FindData.cFileName);
+								}
+							}
+#if ! defined (EXPLORE_HIDDEN_SYSTEM_DIR)
+						}
+#endif
+					}
+				}
+			}
+			while (FindNextFile (hFind, &FindData)) ;
+		}
+		FindClose (hFind);
+	}
+	return (bret);
+}
+
+bool Cinteg_finder::create_pool (UI32 _nb_thread) {
+	bool bret = true;
+	bret = md5_pool.init (_nb_thread);
+	return (bret);
+}
+
+DWORD WINAPI doit_finder (LPVOID lParam) {
+	Cinteg_finder * integ_finder_ptr = (Cinteg_finder *) lParam;
+	integ_finder_ptr->explore_all_from_local_root (integ_finder_ptr->racine.c_str());
+	return (0);
+}
+
+DWORD WINAPI doit_checker (LPVOID lParam) {
+	string filename_crc;
+	string filename;
+	string crc;
+	UI32   nb_abort_received = 0;
+	char tmp[MAX_FILENAME_SIZE];
+
+	for ( ; ; ) {
+		md5_pool.output_pipe.consume (filename_crc);
+		if (filename_crc == terminator_string) {
+			nb_abort_received++;
+			if (nb_abort_received == global_nb_thread) {
+				logger.log_that ("all threads have exited : ", global_nb_thread);
+				logger.log_that ("checker exiting.");
+				// all threads have exited, we are sure the pipe is empty then.
+				break;
+			}
+		}
+		else {
+			// separate filename and crc 
+			filename	= filename_crc.substr (0, filename_crc.size() - CRC_SIZE);
+			crc			= filename_crc.substr (filename.size(), filename_crc.size());
+			// save up the result
+#if defined (DEBUG_INTEGRITY_CHECKER)
+			snprintf (tmp, MAX_FILENAME_SIZE, "adding: %s, crc: %s", filename.c_str(), crc.c_str());
+			tmp[MAX_FILENAME_SIZE - 1] = '\0';
+			logger.log_that (tmp);
+#endif
+			bool bret = integ_db.add_unit (filename.c_str(), true, crc.c_str());
+		}
+	}
+	return (0);
+}
+
+
+HANDLE Cinteg_finder::create_checker () {
+	DWORD dwThreadId;
+	HANDLE hThread; 
+	hThread = CreateThread (NULL, 0, doit_checker, (LPVOID)this, 0, &dwThreadId);
+	return (hThread);
+}
+
+HANDLE Cinteg_finder::create_finder () {
+	DWORD dwThreadId;
+	HANDLE hThread; 
+	hThread = CreateThread (NULL, 0, doit_finder, (LPVOID)this, 0, &dwThreadId);
+	return (hThread);
+}
+
+void Cinteg_finder::search_for_add (vector<string>& _v) {
+	UI32 nb_hdd = _v.size();
+	current_lap = 0;
+	process_aborted	= false;
+	char tmp[256];
+
+	create_pool (POOL_SIZE);
+	HANDLE handle_checker = create_checker ();
+	HANDLE handle_finder;
+
+	for (UI32 i=0 ; i<nb_hdd ; i++) {
+		snprintf (tmp, 256, "exploring drive %s", _v[i].c_str());
+		tmp[255] = '\0';
+		SendDlgItemMessage (saved_hWnd, idc_comment, WM_SETTEXT, 0, (LPARAM) tmp);
+
+		racine		= _v[i];
+		handle_finder  = create_finder ();
+		logger.log_that ("exploring all from local root: ", _v[i].c_str());	
+		WaitForSingleObject (handle_finder, INFINITE);
+		if (process_aborted == true) {
+			break;
+		}
+	}
+
+	if (handle_checker != NULL) {
+		WaitForSingleObject (handle_checker, INFINITE);
+	}
+}
+
+void Cinteg_finder::search_for_add (const char * _root) {
+}
+
+void Cinteg_finder::search_for_check (const char * _root, map<string, UI32>& _m_status, UI32 _index, UI32 _nb_hdd) {
+	if (stop == false) {
+		nb_hdd			= _nb_hdd;
+		total_nb_step	= _nb_hdd + 1;
+		index			= _index;
+		if ((_index == 0) &&  (stop == false)) {
+			integ_db.check_deleted_files (_m_status);
+		}
+		current_lap = 0;
+		m_status_ptr = &_m_status;
+		explore_all_from_local_root (_root);
+	}
+}
+
+
+void Cinteg_finder::explore_all_from_local_root (const char * _root_arg) {
+	bool bret;
+	vector<string>	v_dir;
+	bret = explore_one_directory (_root_arg, "*.exe");
+	if (stop == false) {
+		bret = explore_one_directory (_root_arg, "*.dll");
+	}
+	if (stop == false) {
+		bret = explore_one_directory (_root_arg, "*.sys");
+	}
+	if (stop == false) {
+		bret = explore_one_directory (_root_arg, "*.com");
+	}
+
+	if (stop == false) {
+		extract_directory_list (_root_arg, v_dir);
+		SI32 size = v_dir.size ();
+
+		for (SI32 i=0 ; i<size ; i++) {
+			explore_all_from_local_root (v_dir[i].c_str());
+			if (stop == true) {
+				break;
+			}
+		}
+	}
+	else {
+		abort_process (); // kill threads of the pool
+	}
+}
+
+
+bool Cinteg_finder::explore_one_directory (const char * _dirname, const char * _pattern_arg) {
+	if (stop == true) {
+		return (true);
+	}
+
+	if (SetCurrentDirectory (_dirname) == false) {
+		return (false);
+	}
+
+	WIN32_FIND_DATA FindData; 
+	HANDLE hFind = FindFirstFile (_pattern_arg, &FindData);
+
+	if (hFind == INVALID_HANDLE_VALUE) { // no file found at all
+		return (true);
+	}
+
+	bool bret				= true;
+	string	full_filename	= "";
+	do {
+		if (stop == true) {
+			break;
+		}
+
+		// if it is not a directory
+		if (!(FindData.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)) {
+			string stmp = _dirname;
+			full_filename = stmp + "\\" + FindData.cFileName;
+#if defined (DEBUG_INTEGRITY_CHECKER)				
+			{
+				char tmp[MAX_FILENAME_SIZE];
+				sprintf (tmp, "processing file: %s", full_filename.c_str());
+				logger.log_that (tmp);
+			}
+#endif
+			process_file (full_filename.c_str());
+		}
+	}
+	while (FindNextFile (hFind, &FindData)) ;
+	FindClose (hFind);
+	return(true);
+}
+
+//====================================================
+// load related file finder
+//====================================================
+void Cload_integ_finder::process_file (const char * _filename) {
+	// deposit the filename onto the wait queue
+	string stmp = _filename;
+	md5_pool.input_pipe.produce (stmp);
+}
+
+
+//====================================================
+// check related file finder
+//====================================================
+void Ccheck_integ_finder::process_file (const char * _filename) {
+	UI32 status = integ_db.check_presence (_filename);
+	if ((status != UNIT_PRESENT_SAME) && (status != UNIT_ERROR)) {
+		m_status_ptr->operator[](_filename) = status;
+		strtmp = status_2_string (status);
+
+		// copy file to destination folder
+		string total_name;
+		string new_name = format_filename_and_crc (_filename);
+		if (status == UNIT_ABSENT_FROM_DB) {
+			total_name = new_files_path + "\\" + new_name;
+		}
+		else if (status == UNIT_PRESENT_DIFFERENT) {
+			total_name = modified_files_path + "\\" + new_name;
+		}
+		
+		string ack = "";
+		if (CopyFile (_filename, total_name.c_str(), FALSE) == 0) {
+			ack = "(copy failed) ";
+		}
+		snprintf (tmp, MAX_FILENAME_SIZE, "%s[%s] - %s", ack.c_str(), strtmp.c_str(), _filename);
+		tmp[MAX_FILENAME_SIZE - 1] = '\0';
+		add_text_2_list (tmp);
+	}
+	if ((current_lap%256) ==0) {
+		snprintf (tmp, MAX_FILENAME_SIZE, "checking drive %c%c step %d/%d (%u)", _filename[0], _filename[1], index+2, total_nb_step, current_lap);
+		tmp[MAX_FILENAME_SIZE - 1] = '\0';
+		SendDlgItemMessage (saved_hWnd, idc_comment, WM_SETTEXT, 0, (LPARAM) tmp);	
+	}
+	current_lap++;
+}
+
+string format_filename_and_crc (const char * _orig_file) {
+	UI32 size = strlen (_orig_file);
+	string total_name;
+	UI32 i;
+	for (i=size-1 ; i>=0 ; i--) {
+		if (_orig_file[i] == '\\') {
+			break;
+		}
+	}
+	for (UI32 k=i+1 ; k<size ; k++) {
+		// replace all dots by an underscore so that matcher won't see these new files
+		if (_orig_file[k] == '.') {
+			total_name += '_';	
+		}
+		else {
+			total_name += _orig_file[k]; 			
+		}
+	}
+
+	string crc = compute_hash (_orig_file);
+	total_name += "_";
+	total_name += crc;
+	return (total_name);
+}
+
+void add_text_2_list (const char * _txt) {
+	HDC hdc = GetDC (saved_hWnd);
+	SIZE sz;
+	int txt_size	= strlen (_txt);
+	GetTextExtentPoint32 (hdc, _txt, txt_size, &sz);
+
+	int sysScrollWidth = GetSystemMetrics (SM_CXVSCROLL);
+	int total_size	= sysScrollWidth + sz.cx;
+	if (total_size > max_list_size) {
+		max_list_size = total_size;	
+	}
+	HWND hwnd_list = GetDlgItem (saved_hWnd, idc_list1); 		
+	SendMessage (hwnd_list, LB_SETHORIZONTALEXTENT, max_list_size, 0);
+	SendDlgItemMessage (saved_hWnd, idc_list1, LB_ADDSTRING, 0, (LPARAM) _txt);
+}
+
+void abort_process () {
+	if (process_aborted == false) {
+		SendDlgItemMessage (saved_hWnd, idc_comment, WM_SETTEXT, 0, (LPARAM) "Stopping all threads...please wait");
+		process_aborted = true;
+		// send the stop sequence for each thread of the pool
+		for (UI32 i=0 ; i<global_nb_thread ; i++) {
+			md5_pool.input_pipe.produce (terminator_string);
+		}
+	}
+}

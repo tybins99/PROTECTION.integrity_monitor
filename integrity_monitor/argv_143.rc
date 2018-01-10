@@ -1,0 +1,255 @@
+//Microsoft Developer Studio generated resource script.
+//
+#include "argv_122.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#define APSTUDIO_HIDDEN_SYMBOLS
+#include "windows.h"
+#undef APSTUDIO_HIDDEN_SYMBOLS
+#include "argv_122.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// Korean resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_KOR)
+#ifdef _WIN32
+LANGUAGE LANG_KOREAN, SUBLANG_DEFAULT
+#pragma code_page(949)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Bitmap
+//
+
+argv_361             BITMAP  DISCARDABLE     "migale5_4.bmp"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+argv_623          ICON    DISCARDABLE     "blue_bille.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+argv_616 DIALOGEX 0, 0, 320, 249
+STYLE DS_MODALFRAME | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_TOOLWINDOW
+CAPTION "File Integrity Monitor  Help"
+FONT 10, "System", 0, 0, 0x1
+BEGIN
+    PUSHBUTTON      "Close",IDCANCEL,282,238,36,9
+    LISTBOX         argv_465,8,6,306,228,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | 
+                    WS_TABSTOP
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO DISCARDABLE 
+BEGIN
+    argv_616, DIALOG
+    BEGIN
+        LEFTMARGIN, 2
+        RIGHTMARGIN, 318
+        TOPMARGIN, 2
+        BOTTOMMARGIN, 247
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // Korean resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// English (U.S.) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+argv_624                ICON    DISCARDABLE     "blue_bille.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+argv_608 DIALOGEX 10, 10, 311, 176
+STYLE DS_MODALFRAME | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_TOOLWINDOW
+CAPTION "File Integrity Monitor - Migale Security Software Suite  (V3.2)"
+FONT 10, "System"
+BEGIN
+    PUSHBUTTON      "Check Integrity",argv_393,9,159,147,11
+    PUSHBUTTON      "Create All HDD Database",argv_415,9,125,115,10
+    GROUPBOX        "Operation",argv_539,6,114,122,39
+    GROUPBOX        "",argv_538,4,0,300,19
+    LTEXT           "",argv_410,8,7,292,8
+    LISTBOX         argv_465,4,20,300,90,LBS_EXTENDEDSEL | WS_VSCROLL | 
+                    WS_HSCROLL | WS_TABSTOP
+    CONTROL         "Loop (check / uncheck at any time)",argv_394,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,172,160,125,10
+    CONTROL         "Progress1",argv_513,"msctls_progress32",WS_BORDER,
+                    15,69,258,6
+    LTEXT           "Shutdown in progress...Please Wait",argv_530,15,
+                    57,136,8
+    GROUPBOX        "",argv_541,13,50,263,28
+    PUSHBUTTON      "Help",argv_375,269,129,23,11
+    PUSHBUTTON      "Create Folder Snapshot",argv_416,9,140,
+                    115,10
+    GROUPBOX        "Options",argv_542,128,114,176,39
+    GROUPBOX        "",argv_543,249,114,55,39
+    CONTROL         "Only system files (sys, dll, exe)",argv_490,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,134,124,115,10
+    GROUPBOX        "",argv_544,6,133,122,20
+    GROUPBOX        "",argv_545,6,152,298,22
+    CONTROL         "Compress Database",argv_549,"Button",BS_AUTOCHECKBOX | 
+                    WS_DISABLED | WS_TABSTOP,134,138,115,10
+    GROUPBOX        "",argv_546,6,152,153,22
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO DISCARDABLE 
+BEGIN
+    argv_608, DIALOG
+    BEGIN
+        RIGHTMARGIN, 310
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (U.S.) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+/////////////////////////////////////////////////////////////////////////////
+// French (France) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_FRA)
+#ifdef _WIN32
+LANGUAGE LANG_FRENCH, SUBLANG_FRENCH
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Menu
+//
+
+argv_607 MENU DISCARDABLE 
+BEGIN
+    POPUP "&File"
+    BEGIN
+        MENUITEM "E&xit",                       argv_629
+        MENUITEM "&Open File",                  argv_630
+        MENUITEM "toto",                        argv_360
+    END
+    POPUP "&Help"
+    BEGIN
+        MENUITEM "&argv_165 ...",                  argv_628
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Accelerator
+//
+
+argv_607 ACCELERATORS MOVEABLE PURE 
+BEGIN
+    "?",            argv_628,              ASCII,  ALT
+    "/",            argv_628,              ASCII,  ALT
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+2 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "#define APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "#include ""windows.h""\r\n"
+    "#undef APSTUDIO_HIDDEN_SYMBOLS\r\n"
+    "#include ""argv_122.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+1 TEXTINCLUDE DISCARDABLE 
+BEGIN
+    "argv_122.h\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE DISCARDABLE 
+BEGIN
+    argv_632           "Integrity"
+    argv_633               "Hello World!"
+    argv_607                 "ZOR"
+END
+
+#endif    // French (France) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

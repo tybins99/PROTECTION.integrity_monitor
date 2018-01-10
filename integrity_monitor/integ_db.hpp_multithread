@@ -1,0 +1,96 @@
+#ifndef __INTEG_DB__
+#define __INTEG_DB__
+
+#include <cstdio>
+#include <cstdlib>
+#include <vector>
+#include <string>
+#include <map>
+#include <iostream>
+
+#include "..\\Lib\\general.hpp"
+#include "..\\Lib\\md5.hpp"
+
+using namespace std;
+
+const	UI32			MAX_FILENAME_SIZE	= 1024;
+const	UI32			POOL_SIZE			= 250;
+
+
+enum unit_possible_state_enum {
+	UNIT_ERROR,
+	UNIT_ABSENT_FROM_DB=342,
+	UNIT_DELETED_FROM_DISK,
+	UNIT_PRESENT_SAME,
+	UNIT_PRESENT_DIFFERENT,
+};
+
+string status_2_string (UI32);
+
+class Cinteg_db
+{
+private:
+	bool loaded;
+	map<string, string> m;
+	map<string, string>::iterator iter;
+	string crc;
+	bool compute_crc (const char *);
+
+public:
+	Cinteg_db ();
+	bool check_deleted_files (map<string, UI32>&);
+
+	bool load (const char *);
+	bool save (const char *);
+	bool add_unit (const char *, bool, const char *);
+	UI32 get_size ();
+	UI32 check_presence (const char *);
+	void clear();
+};
+
+
+class Cinteg_finder
+{
+protected:
+	map<string, UI32> * m_status_ptr;
+	bool check_deleted_files (vector<string>&);
+	virtual void process_file (const char *) = 0;
+	bool extract_directory_list (const char *, vector<string>&);
+	bool explore_one_directory (const char *, const char *);
+	void explore_all_from_local_root (const char *);
+	map<string, UI32>::iterator iter;
+
+public:
+	bool	create_pool (UI32);
+	HANDLE	create_checker ();
+	HANDLE	create_finder ();
+
+	string racine;
+	void search_for_add   (const char *); 
+	void search_for_add	  (vector<string>&);
+	void search_for_check (const char *, map<string, UI32>&, UI32, UI32);
+
+	friend DWORD WINAPI doit_finder (LPVOID);
+};
+
+class Cload_integ_finder : public Cinteg_finder
+{
+public:
+	void process_file (const char *);
+};
+
+
+class Ccheck_integ_finder : public Cinteg_finder
+{
+private:
+	char	tmp[MAX_FILENAME_SIZE];
+	string	strtmp;
+public:
+	void	process_file (const char *);
+};
+
+string	format_filename_and_crc (const char *);
+void	add_text_2_list (const char *);
+void	abort_process ();
+
+#endif // __INTEG_DB__
