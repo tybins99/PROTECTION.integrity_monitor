@@ -1,7 +1,7 @@
 ____
 # Migale Security Suite - File Integrity Monitor
-# 2006/12/04
-# email: cv.dev.cpp@gmail.com
+### Revision date : 2006/12/04
+### email         : cv.dev.cpp@gmail.com
 ____
 
 ## __1. Introduction__
